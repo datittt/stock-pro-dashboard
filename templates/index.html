@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S-Invest | Cá nhân hóa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-[#05070a] text-slate-200 min-h-screen">
+
+    <div class="max-w-lg mx-auto p-4 pb-24">
+        <header class="flex justify-between items-center mb-8 pt-4">
+            <h1 class="text-2xl font-black bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">SMART INVEST</h1>
+            <div class="bg-slate-800 p-2 rounded-full px-4 flex items-center gap-2">
+                <input type="text" id="sInput" placeholder="Tìm mã..." class="bg-transparent outline-none text-sm w-16 uppercase">
+                <i class="fas fa-search text-slate-500 cursor-pointer" onclick="updateStock(document.getElementById('sInput').value)"></i>
+            </div>
+        </header>
+
+        <div class="glass rounded-[2.5rem] p-8 mb-8 shadow-2xl relative overflow-hidden">
+            <div class="flex justify-between items-start relative z-10">
+                <div>
+                    <h2 id="symbol" class="text-5xl font-black tracking-tighter">---</h2>
+                    <p id="rsiBox" class="text-xs mt-2 font-bold uppercase tracking-widest text-slate-400">Đang phân tích...</p>
+                </div>
+                <div class="text-right">
+                    <p id="price" class="text-3xl font-light">$0.00</p>
+                    <p id="change" class="text-sm font-bold">0%</p>
+                </div>
+            </div>
+            <div class="mt-8 h-40">
+                <canvas id="chart"></canvas>
+            </div>
+        </div>
+
+        <div class="flex gap-2 overflow-x-auto no-scrollbar mb-6">
+            <button onclick="loadList('most_active')" class="bg-blue-600 px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap">🔥 Sôi động nhất</button>
+            <button onclick="loadList('gainers')" class="glass px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap">🚀 Tăng mạnh</button>
+            <button onclick="loadList('vn')" class="glass px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap">🇻🇳 Việt Nam</button>
+            <button onclick="loadList('crypto')" class="glass px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap">₿ Crypto</button>
+        </div>
+
+        <div id="stockList" class="space-y-3">
+            </div>
+    </div>
+
+    <script>
+        let chart;
+        async function updateStock(ticker) {
+            const res = await fetch(`/api/stock/${ticker}`);
+            const data = await res.json();
+            if(data.error) return;
+
+            document.getElementById('symbol').innerText = data.symbol;
+            document.getElementById('price').innerText = `$${data.price}`;
+            
+            const cEl = document.getElementById('change');
+            cEl.innerText = (data.change > 0 ? '▲ +' : '▼ ') + data.change + '%';
+            cEl.className = `text-sm font-bold mt-1 ${data.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+            const rEl = document.getElementById('rsiBox');
+            rEl.innerText = `RSI: ${data.rsi} • ${data.rsi > 70 ? 'Quá mua' : data.rsi < 30 ? 'Quá bán' : 'Trung lập'}`;
+
+            if(chart) chart.destroy();
+            const ctx = document.getElementById('chart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.history,
+                        borderColor: '#3b82f6',
+                        borderWidth: 3,
+                        pointRadius: 0,
+                        tension: 0.4,
+                        fill: true,
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)'
+                    }]
+                },
+                options: {
+                    plugins: { legend: { display: false } },
+                    scales: { x: { display: false }, y: { display: false } }
+                }
+            });
+        }
+
+        async function loadList(cat) {
+            const listEl = document.getElementById('stockList');
+            listEl.innerHTML = '<p class="text-center text-slate-600 py-4">Đang quét thị trường...</p>';
+            
+            const res = await fetch(`/api/list/${cat}`);
+            const data = await res.json();
+            
+            listEl.innerHTML = '';
+            data.stocks.forEach(s => {
+                const item = document.createElement('div');
+                item.className = "glass p-4 rounded-2xl flex justify-between items-center cursor-pointer hover:bg-white/5 transition";
+                item.onclick = () => updateStock(s);
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center font-black text-[10px]">${s.substring(0,3)}</div>
+                        <span class="font-bold text-sm">${s}</span>
+                    </div>
+                    <i class="fas fa-chevron-right text-slate-700 text-xs"></i>
+                `;
+                listEl.appendChild(item);
+            });
+            if(data.stocks.length > 0) updateStock(data.stocks[0]);
+        }
+
+        loadList('most_active');
+    </script>
+</body>
+</html>
